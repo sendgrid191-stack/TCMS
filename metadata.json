@@ -1,0 +1,6 @@
+{
+  "name": "Training Compliance Management System",
+  "description": "A professional web-based and desktop training compliance calculation dashboard for HRD departments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
