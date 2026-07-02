@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TrainingRecord, CategoryAData, CompliancePolicy, EmployeeCompliance, ValidationLog, VerticalSummary, CategorySummary } from './types';
+import { TrainingRecord, CategoryAData, CompliancePolicy, EmployeeCompliance, ValidationLog, VerticalSummary, CategorySummary, ManualOverride } from './types';
 import * as XLSX from 'xlsx';
 
 // 1. Compliance Calculator
@@ -11,13 +11,20 @@ export function calculateCompliance(
   employees: { name: string; serviceNo: string; vertical: string; designation?: string }[],
   trainingRecords: TrainingRecord[],
   categoryAData: CategoryAData[],
-  policies: { 'Assistant Manager': CompliancePolicy; 'Manager': CompliancePolicy }
+  policies: { 'Assistant Manager': CompliancePolicy; 'Manager': CompliancePolicy },
+  manualOverrides: ManualOverride[] = []
 ): EmployeeCompliance[] {
   
   // Build lookup maps
   const catAMap = new Map<string, number>();
   categoryAData.forEach(item => {
     catAMap.set(item.serviceNo, item.completedCount);
+  });
+
+  // Build override maps for easy lookup: `${serviceNo}_${category}` -> completedCount
+  const overrideMap = new Map<string, number>();
+  manualOverrides.forEach(item => {
+    overrideMap.set(`${item.serviceNo}_${item.category}`, item.completedCount);
   });
 
   // Group passed training codes per employee and category
@@ -68,11 +75,37 @@ export function calculateCompliance(
     const empPolicy = policies[desigKey];
 
     // Passed counts (unique codes with Pass status)
-    const fundamentalPassed = catMap?.get('Fundamental')?.size || 0;
-    const categoryAPassed = catAMap.get(sNo) ?? 0; // Default to 0 if not found
-    const categoryBPassed = catMap?.get('Category B')?.size || 0;
-    const categoryCPassed = catMap?.get('Category C')?.size || 0;
-    const categoryDPassed = catMap?.get('Category D')?.size || 0;
+    const fundamentalPassedRaw = catMap?.get('Fundamental')?.size || 0;
+    const categoryAPassedRaw = catAMap.get(sNo) ?? 0; // Default to 0 if not found
+    const categoryBPassedRaw = catMap?.get('Category B')?.size || 0;
+    const categoryCPassedRaw = catMap?.get('Category C')?.size || 0;
+    const categoryDPassedRaw = catMap?.get('Category D')?.size || 0;
+
+    // Check manual overrides
+    const fundamentalOverridden = overrideMap.has(`${sNo}_Fundamental`);
+    const fundamentalPassed = fundamentalOverridden 
+      ? overrideMap.get(`${sNo}_Fundamental`)! 
+      : fundamentalPassedRaw;
+
+    const categoryAOverridden = overrideMap.has(`${sNo}_Category A`);
+    const categoryAPassed = categoryAOverridden 
+      ? overrideMap.get(`${sNo}_Category A`)! 
+      : categoryAPassedRaw;
+
+    const categoryBOverridden = overrideMap.has(`${sNo}_Category B`);
+    const categoryBPassed = categoryBOverridden 
+      ? overrideMap.get(`${sNo}_Category B`)! 
+      : categoryBPassedRaw;
+
+    const categoryCOverridden = overrideMap.has(`${sNo}_Category C`);
+    const categoryCPassed = categoryCOverridden 
+      ? overrideMap.get(`${sNo}_Category C`)! 
+      : categoryCPassedRaw;
+
+    const categoryDOverridden = overrideMap.has(`${sNo}_Category D`);
+    const categoryDPassed = categoryDOverridden 
+      ? overrideMap.get(`${sNo}_Category D`)! 
+      : categoryDPassedRaw;
 
     // Policies
     const fundamentalRequired = empPolicy.Fundamental;
@@ -135,26 +168,37 @@ export function calculateCompliance(
       serviceNo: emp.serviceNo,
       vertical: emp.vertical,
       designation: desigKey,
+      
       fundamentalPassed,
       fundamentalRequired,
       fundamentalRemaining,
       fundamentalCompliance,
+      fundamentalOverridden,
+
       categoryAPassed,
       categoryARequired,
       categoryARemaining,
       categoryACompliance,
+      categoryAOverridden,
+
       categoryBPassed,
       categoryBRequired,
       categoryBRemaining,
       categoryBCompliance,
+      categoryBOverridden,
+
       categoryCPassed,
       categoryCRequired,
       categoryCRemaining,
       categoryCCompliance,
+      categoryCOverridden,
+
       categoryDPassed,
       categoryDRequired,
       categoryDRemaining,
       categoryDCompliance,
+      categoryDOverridden,
+
       totalPassed,
       totalRequired,
       overallCompliance,

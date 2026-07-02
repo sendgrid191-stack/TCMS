@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { EmployeeCompliance, TrainingRecord, CategoryAData } from '../types';
+import { EmployeeCompliance, TrainingRecord, CategoryAData, ManualOverride } from '../types';
 import { Search, SlidersHorizontal, Eye, RefreshCw, Save, Check, X, ShieldAlert, BadgeInfo, AlertTriangle, ArrowUpDown, ChevronRight, Trash2 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -12,8 +12,10 @@ interface EmployeeBrowserProps {
   complianceData: EmployeeCompliance[];
   trainingRecords: TrainingRecord[];
   categoryAData: CategoryAData[];
+  manualOverrides: ManualOverride[];
   verticals: string[];
   onUpdateCategoryA: (serviceNo: string, count: number) => void;
+  onUpdateOverride: (serviceNo: string, category: 'Fundamental' | 'Category A' | 'Category B' | 'Category C' | 'Category D', count: number | null) => void;
   selectedEmployeeNo?: string | null;
   onClearSelection?: () => void;
   onDeleteEmployee?: (serviceNo: string | string[]) => void;
@@ -26,8 +28,10 @@ export default function EmployeeBrowser({
   complianceData,
   trainingRecords,
   categoryAData,
+  manualOverrides,
   verticals,
   onUpdateCategoryA,
+  onUpdateOverride,
   selectedEmployeeNo,
   onClearSelection,
   onDeleteEmployee,
@@ -51,8 +55,12 @@ export default function EmployeeBrowser({
 
   // Detail Modal state
   const [selectedEmp, setSelectedEmp] = useState<EmployeeCompliance | null>(null);
-  const [editingCatACount, setEditingCatACount] = useState<number | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [editingFundCount, setEditingFundCount] = useState<number>(0);
+  const [editingCatACount, setEditingCatACount] = useState<number>(0);
+  const [editingCatBCount, setEditingCatBCount] = useState<number>(0);
+  const [editingCatCCount, setEditingCatCCount] = useState<number>(0);
+  const [editingCatDCount, setEditingCatDCount] = useState<number>(0);
+  const [saveSuccess, setSaveSuccess] = useState<Record<string, boolean>>({});
 
   // Custom confirmation modal state
   const [confirmState, setConfirmState] = useState<{
@@ -76,8 +84,7 @@ export default function EmployeeBrowser({
       const emp = complianceData.find(e => e.serviceNo === selectedEmployeeNo);
       if (emp) {
         setSelectedEmp(emp);
-        setEditingCatACount(emp.categoryAPassed);
-        setSaveSuccess(false);
+        setSaveSuccess({});
         onClearSelection?.();
       }
     }
@@ -95,6 +102,17 @@ export default function EmployeeBrowser({
       }
     }
   }, [complianceData]);
+
+  // Synchronize local input state with selectedEmp values
+  React.useEffect(() => {
+    if (selectedEmp) {
+      setEditingFundCount(selectedEmp.fundamentalPassed);
+      setEditingCatACount(selectedEmp.categoryAPassed);
+      setEditingCatBCount(selectedEmp.categoryBPassed);
+      setEditingCatCCount(selectedEmp.categoryCPassed);
+      setEditingCatDCount(selectedEmp.categoryDPassed);
+    }
+  }, [selectedEmp]);
 
   // Sort toggle helper
   const handleSort = (field: keyof EmployeeCompliance) => {
@@ -152,8 +170,7 @@ export default function EmployeeBrowser({
   // Open detail panel for employee
   const handleViewEmployee = (emp: EmployeeCompliance) => {
     setSelectedEmp(emp);
-    setEditingCatACount(emp.categoryAPassed);
-    setSaveSuccess(false);
+    setSaveSuccess({});
   };
 
   // Double-click handler
@@ -161,24 +178,33 @@ export default function EmployeeBrowser({
     handleViewEmployee(emp);
   };
 
-  // Save manual override for Category A
-  const handleSaveCategoryAOverride = () => {
-    if (selectedEmp && editingCatACount !== null) {
-      onUpdateCategoryA(selectedEmp.serviceNo, editingCatACount);
-      setSaveSuccess(true);
-      
-      // Instantly recalculate local selected employee details
-      const updatedEmp = complianceData.find(e => e.serviceNo === selectedEmp.serviceNo);
-      if (updatedEmp) {
-        setSelectedEmp({
-          ...updatedEmp,
-          categoryAPassed: editingCatACount,
-          // Recalculating totals on the fly so UI responds instantly inside modal
-          totalPassed: updatedEmp.totalPassed - updatedEmp.categoryAPassed + editingCatACount,
-        });
+  // Save manual override for any category
+  const handleSaveSingleOverride = (
+    category: 'Fundamental' | 'Category A' | 'Category B' | 'Category C' | 'Category D',
+    count: number
+  ) => {
+    if (selectedEmp) {
+      onUpdateOverride(selectedEmp.serviceNo, category, count);
+      if (category === 'Category A') {
+        onUpdateCategoryA(selectedEmp.serviceNo, count);
       }
+      setSaveSuccess(prev => ({ ...prev, [category]: true }));
+      setTimeout(() => {
+        setSaveSuccess(prev => ({ ...prev, [category]: false }));
+      }, 2000);
+    }
+  };
 
-      setTimeout(() => setSaveSuccess(false), 2000);
+  // Clear manual override for any category
+  const handleClearSingleOverride = (
+    category: 'Fundamental' | 'Category A' | 'Category B' | 'Category C' | 'Category D'
+  ) => {
+    if (selectedEmp) {
+      onUpdateOverride(selectedEmp.serviceNo, category, null);
+      if (category === 'Category A') {
+        const original = categoryAData.find(c => c.serviceNo === selectedEmp.serviceNo);
+        onUpdateCategoryA(selectedEmp.serviceNo, original ? original.completedCount : 0);
+      }
     }
   };
 
@@ -596,37 +622,75 @@ export default function EmployeeBrowser({
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               
-              {/* Category A Manual Edit Module */}
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Category A Completed Trainings</h4>
-                    <p className="text-[10px] text-slate-400">Manually edited override values are persistent inside the SQLite database</p>
-                  </div>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                    (categoryAData.find(c => c.serviceNo === selectedEmp.serviceNo)?.source === 'manual')
-                      ? 'bg-purple-50 dark:bg-purple-950/20 text-purple-600'
-                      : 'bg-blue-50 dark:bg-blue-950/20 text-blue-600'
-                  }`}>
-                    {(categoryAData.find(c => c.serviceNo === selectedEmp.serviceNo)?.source === 'manual') ? 'Manual Override' : 'Import File'}
-                  </span>
+              {/* Generalized Manual Overrides Module */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Manual Compliance Overrides</h4>
+                  <p className="text-[10px] text-slate-400">Set direct manual overrides for completed counts across all training categories.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={editingCatACount ?? 0}
-                    onChange={(e) => setEditingCatACount(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-20 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={handleSaveCategoryAOverride}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
-                  >
-                    {saveSuccess ? <Check size={14} /> : <Save size={14} />}
-                    {saveSuccess ? 'Saved' : 'Override Count'}
-                  </button>
+
+                <div className="space-y-2.5">
+                  {[
+                    { key: 'Fundamental' as const, label: 'Fundamental Trainings', count: editingFundCount, setCount: setEditingFundCount, passed: selectedEmp.fundamentalPassed, req: selectedEmp.fundamentalRequired, overridden: selectedEmp.fundamentalOverridden },
+                    { key: 'Category A' as const, label: 'Category A Workflows', count: editingCatACount, setCount: setEditingCatACount, passed: selectedEmp.categoryAPassed, req: selectedEmp.categoryARequired, overridden: selectedEmp.categoryAOverridden },
+                    { key: 'Category B' as const, label: 'Category B Modules', count: editingCatBCount, setCount: setEditingCatBCount, passed: selectedEmp.categoryBPassed, req: selectedEmp.categoryBRequired, overridden: selectedEmp.categoryBOverridden },
+                    { key: 'Category C' as const, label: 'Category C Guidelines', count: editingCatCCount, setCount: setEditingCatCCount, passed: selectedEmp.categoryCPassed, req: selectedEmp.categoryCRequired, overridden: selectedEmp.categoryCOverridden },
+                    { key: 'Category D' as const, label: 'Category D Platforms', count: editingCatDCount, setCount: setEditingCatDCount, passed: selectedEmp.categoryDPassed, req: selectedEmp.categoryDRequired, overridden: selectedEmp.categoryDOverridden }
+                  ].map((cat) => {
+                    const isOverridden = manualOverrides.some(o => o.serviceNo === selectedEmp.serviceNo && o.category === cat.key);
+                    const isSaved = saveSuccess[cat.key];
+
+                    return (
+                      <div key={cat.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl gap-2 text-xs transition hover:border-slate-200 dark:hover:border-slate-700">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate">{cat.label}</span>
+                            {isOverridden && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/40">
+                                Override Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {isOverridden ? 'Running on manual override count' : 'Using automatic calculation'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="30"
+                              value={cat.count}
+                              onChange={(e) => cat.setCount(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-14 px-1.5 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-center font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <span className="text-slate-400 text-[11px]">/ {cat.req}</span>
+                          </div>
+                          <button
+                            onClick={() => handleSaveSingleOverride(cat.key, cat.count)}
+                            className={`flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg shadow-xs transition ${
+                              isSaved
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            {isSaved ? <Check size={12} /> : <Save size={12} />}
+                            {isSaved ? 'Saved' : 'Save'}
+                          </button>
+                          {isOverridden && (
+                            <button
+                              onClick={() => handleClearSingleOverride(cat.key)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition"
+                              title="Restore automatic calculated tally"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -635,14 +699,21 @@ export default function EmployeeBrowser({
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Compliance Status Card</h4>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {[
-                    { label: 'Fundamental', passed: selectedEmp.fundamentalPassed, req: selectedEmp.fundamentalRequired, comp: selectedEmp.fundamentalCompliance },
-                    { label: 'Category A', passed: selectedEmp.categoryAPassed, req: selectedEmp.categoryARequired, comp: selectedEmp.categoryACompliance },
-                    { label: 'Category B', passed: selectedEmp.categoryBPassed, req: selectedEmp.categoryBRequired, comp: selectedEmp.categoryBCompliance },
-                    { label: 'Category C', passed: selectedEmp.categoryCPassed, req: selectedEmp.categoryCRequired, comp: selectedEmp.categoryCCompliance },
-                    { label: 'Category D', passed: selectedEmp.categoryDPassed, req: selectedEmp.categoryDRequired, comp: selectedEmp.categoryDCompliance }
+                    { label: 'Fundamental', passed: selectedEmp.fundamentalPassed, req: selectedEmp.fundamentalRequired, comp: selectedEmp.fundamentalCompliance, overridden: selectedEmp.fundamentalOverridden },
+                    { label: 'Category A', passed: selectedEmp.categoryAPassed, req: selectedEmp.categoryARequired, comp: selectedEmp.categoryACompliance, overridden: selectedEmp.categoryAOverridden },
+                    { label: 'Category B', passed: selectedEmp.categoryBPassed, req: selectedEmp.categoryBRequired, comp: selectedEmp.categoryBCompliance, overridden: selectedEmp.categoryBOverridden },
+                    { label: 'Category C', passed: selectedEmp.categoryCPassed, req: selectedEmp.categoryCRequired, comp: selectedEmp.categoryCCompliance, overridden: selectedEmp.categoryCOverridden },
+                    { label: 'Category D', passed: selectedEmp.categoryDPassed, req: selectedEmp.categoryDRequired, comp: selectedEmp.categoryDCompliance, overridden: selectedEmp.categoryDOverridden }
                   ].map((cat, idx) => (
-                    <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl text-center shadow-xs flex flex-col justify-between">
-                      <span className="text-[10px] text-slate-400 font-semibold truncate block mb-1">{cat.label}</span>
+                    <div key={idx} className={`border p-3 rounded-xl text-center shadow-xs flex flex-col justify-between ${
+                      cat.overridden 
+                        ? 'bg-purple-50/40 dark:bg-purple-950/10 border-purple-100 dark:border-purple-900/50' 
+                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800'
+                    }`}>
+                      <span className="text-[10px] text-slate-400 font-semibold truncate block mb-1">
+                        {cat.label}
+                        {cat.overridden && ' ✍️'}
+                      </span>
                       <div>
                         <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{cat.passed} / {cat.req}</div>
                         <div className={`text-[10px] font-bold mt-1 ${cat.comp >= 100 ? 'text-emerald-500' : 'text-amber-500'}`}>{cat.comp.toFixed(0)}%</div>

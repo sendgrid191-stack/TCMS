@@ -20,6 +20,12 @@ export interface CategoryAData {
   source: 'import' | 'manual';
 }
 
+export interface ManualOverride {
+  serviceNo: string;
+  category: 'Fundamental' | 'Category A' | 'Category B' | 'Category C' | 'Category D';
+  completedCount: number;
+}
+
 export interface CompliancePolicy {
   Fundamental: number;
   CategoryA: number;
@@ -38,26 +44,31 @@ export interface EmployeeCompliance {
   fundamentalRequired: number;
   fundamentalRemaining: number;
   fundamentalCompliance: number;
+  fundamentalOverridden?: boolean;
 
   categoryAPassed: number;
   categoryARequired: number;
   categoryARemaining: number;
   categoryACompliance: number;
+  categoryAOverridden?: boolean;
 
   categoryBPassed: number;
   categoryBRequired: number;
   categoryBRemaining: number;
   categoryBCompliance: number;
+  categoryBOverridden?: boolean;
 
   categoryCPassed: number;
   categoryCRequired: number;
   categoryCRemaining: number;
   categoryCCompliance: number;
+  categoryCOverridden?: boolean;
 
   categoryDPassed: number;
   categoryDRequired: number;
   categoryDRemaining: number;
   categoryDCompliance: number;
+  categoryDOverridden?: boolean;
 
   totalPassed: number;
   totalRequired: number;

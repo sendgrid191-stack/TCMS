@@ -18,7 +18,8 @@ import {
   CompliancePolicy, 
   ValidationLog, 
   VerticalSummary, 
-  CategorySummary 
+  CategorySummary,
+  ManualOverride
 } from './types';
 
 // Subcomponents
@@ -60,6 +61,7 @@ export default function App() {
   const [categoryAData, setCategoryAData] = useState<CategoryAData[]>(INITIAL_CATEGORY_A_RECORDS);
   const [policies, setPolicies] = useState<{ 'Assistant Manager': CompliancePolicy; 'Manager': CompliancePolicy }>(DEFAULT_DESIGNATION_POLICIES);
   const [validationLogs, setValidationLogs] = useState<ValidationLog[]>([]);
+  const [manualOverrides, setManualOverrides] = useState<ManualOverride[]>([]);
 
   // Navigation tab
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -69,8 +71,8 @@ export default function App() {
 
   // Global recalculation metrics
   const complianceData = useMemo(() => {
-    return calculateCompliance(employees, trainingRecords, categoryAData, policies);
-  }, [employees, trainingRecords, categoryAData, policies]);
+    return calculateCompliance(employees, trainingRecords, categoryAData, policies, manualOverrides);
+  }, [employees, trainingRecords, categoryAData, policies, manualOverrides]);
 
   // Record/employee deletion handlers
   const handleDeleteEmployee = (serviceNoOrNos: string | string[]) => {
@@ -80,6 +82,7 @@ export default function App() {
     setEmployees(prev => prev.filter(emp => !noSet.has(emp.serviceNo)));
     setTrainingRecords(prev => prev.filter(rec => !noSet.has(rec.serviceNo)));
     setCategoryAData(prev => prev.filter(cat => !noSet.has(cat.serviceNo)));
+    setManualOverrides(prev => prev.filter(o => !noSet.has(o.serviceNo)));
 
     if (selectedEmployeeNo && noSet.has(selectedEmployeeNo)) {
       setSelectedEmployeeNo(null);
@@ -95,6 +98,7 @@ export default function App() {
     setCategoryAData([]);
     setEmployees([]);
     setValidationLogs([]);
+    setManualOverrides([]);
   };
 
   const handleResetToSampleData = () => {
@@ -102,6 +106,7 @@ export default function App() {
     setTrainingRecords(INITIAL_TRAINING_RECORDS);
     setCategoryAData(INITIAL_CATEGORY_A_RECORDS);
     setValidationLogs([]);
+    setManualOverrides([]);
   };
 
   // Compute unique list of verticals
@@ -245,6 +250,21 @@ export default function App() {
         source: 'manual'
       });
       return Array.from(map.values());
+    });
+  };
+
+  const handleUpdateOverride = (
+    serviceNo: string,
+    category: 'Fundamental' | 'Category A' | 'Category B' | 'Category C' | 'Category D',
+    count: number | null
+  ) => {
+    setManualOverrides(prev => {
+      const filtered = prev.filter(o => !(o.serviceNo === serviceNo && o.category === category));
+      if (count === null) {
+        return filtered;
+      } else {
+        return [...filtered, { serviceNo, category, completedCount: count }];
+      }
     });
   };
 
@@ -434,8 +454,10 @@ export default function App() {
               complianceData={complianceData} 
               trainingRecords={trainingRecords}
               categoryAData={categoryAData}
+              manualOverrides={manualOverrides}
               verticals={verticalsList}
               onUpdateCategoryA={handleSaveCategoryAOverride}
+              onUpdateOverride={handleUpdateOverride}
               selectedEmployeeNo={selectedEmployeeNo}
               onClearSelection={() => setSelectedEmployeeNo(null)}
               onDeleteEmployee={handleDeleteEmployee}
