@@ -30,6 +30,7 @@ import Importer from './components/Importer';
 import Reports from './components/Reports';
 import ValidationLogs from './components/ValidationLogs';
 import PythonExporter from './components/PythonExporter';
+import LandingPage from './components/LandingPage';
 
 // Icons
 import { 
@@ -48,10 +49,20 @@ import {
   HelpCircle,
   TrendingUp,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 
 export default function App() {
+  // Admin authentication state
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('tcms_admin_logged_in') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -288,6 +299,22 @@ export default function App() {
   const errorLogsCount = validationLogs.filter(l => l.type === 'error').length;
   const warningLogsCount = validationLogs.filter(l => l.type === 'warning').length;
 
+  if (!isAdminLoggedIn) {
+    return (
+      <LandingPage 
+        onLoginSuccess={() => {
+          setIsAdminLoggedIn(true);
+          try {
+            localStorage.setItem('tcms_admin_logged_in', 'true');
+          } catch (e) {
+            console.error(e);
+          }
+        }} 
+        isDarkMode={isDarkMode} 
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen font-sans flex text-slate-800 dark:text-slate-100 transition-colors duration-200 ${isDarkMode ? 'dark bg-slate-950' : 'bg-slate-50/50'}`} id="tcms-root-layout">
       
@@ -372,6 +399,20 @@ export default function App() {
           <p className="text-[10px] text-slate-500 leading-normal">
             Calculations are performed strictly in memory and persistent inside temporary caches.
           </p>
+          <button
+            onClick={() => {
+              setIsAdminLoggedIn(false);
+              try {
+                localStorage.removeItem('tcms_admin_logged_in');
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800/60 hover:bg-rose-950/30 hover:text-rose-400 text-slate-400 rounded-xl text-xs font-bold transition border border-slate-800/80 hover:border-rose-900/40 cursor-pointer mt-1"
+          >
+            <LogOut size={13} />
+            <span>Sign Out Admin</span>
+          </button>
         </div>
       </aside>
 
@@ -396,7 +437,7 @@ export default function App() {
             {/* Theme Toggle Button */}
             <button
               onClick={() => setIsDarkMode(prev => !prev)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 transition"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
               title="Toggle theme mode"
             >
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -412,6 +453,23 @@ export default function App() {
                 <span>{errorLogsCount + warningLogsCount} Issue Logs</span>
               </div>
             )}
+
+            {/* Topbar Sign Out Button */}
+            <button
+              onClick={() => {
+                setIsAdminLoggedIn(false);
+                try {
+                  localStorage.removeItem('tcms_admin_logged_in');
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 border border-rose-200/40 dark:border-rose-900/30 rounded-lg text-xs font-bold transition cursor-pointer"
+              title="Sign out from admin session"
+            >
+              <LogOut size={13} />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
           </div>
         </header>
 
