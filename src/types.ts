@@ -3,6 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export interface Employee {
+  name: string;
+  serviceNo: string;
+  vertical: string;
+  designation?: string;
+}
+
 export interface TrainingRecord {
   id: string;
   employeeName: string;

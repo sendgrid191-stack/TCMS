@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import ConfirmDialog from './ConfirmDialog';
 
 interface ImporterProps {
-  onImportTrainingRecords: (records: TrainingRecord[], newEmployees: { name: string; serviceNo: string; vertical: string }[], logs: ValidationLog[]) => void;
+  onImportTrainingRecords: (records: TrainingRecord[], newEmployees: { name: string; serviceNo: string; vertical: string; designation?: string }[], logs: ValidationLog[]) => void;
   onImportCategoryAData: (data: CategoryAData[]) => void;
   onClearAllRecords?: () => void;
   onResetToSampleData?: () => void;
@@ -54,6 +54,7 @@ export default function Importer({ onImportTrainingRecords, onImportCategoryADat
     { key: 'employeeName', label: 'Employee Name' },
     { key: 'serviceNo', label: 'Service No / Number' },
     { key: 'vertical', label: 'Vertical / Division' },
+    { key: 'designation', label: 'Designation / Role' },
     { key: 'category', label: 'Training Category' },
     { key: 'code', label: 'Training Code' },
     { key: 'title', label: 'Training Title' },
@@ -68,6 +69,7 @@ export default function Importer({ onImportTrainingRecords, onImportCategoryADat
       if (lower.includes('name')) autoMap['employeeName'] = h;
       else if (lower.includes('service') || lower.includes('no') || lower.includes('number')) autoMap['serviceNo'] = h;
       else if (lower.includes('vertical') || lower.includes('division') || lower.includes('dept')) autoMap['vertical'] = h;
+      else if (lower.includes('designation') || lower.includes('role') || lower.includes('desig')) autoMap['designation'] = h;
       else if (lower.includes('category') || lower.includes('class')) autoMap['category'] = h;
       else if (lower.includes('code') || lower.includes('course')) autoMap['code'] = h;
       else if (lower.includes('title') || lower.includes('subject')) autoMap['title'] = h;
@@ -153,6 +155,7 @@ export default function Importer({ onImportTrainingRecords, onImportCategoryADat
         'Employee Name': row[mapping['employeeName']] || '',
         'Service No': row[mapping['serviceNo']] || '',
         'Vertical': row[mapping['vertical']] || '',
+        'Designation': row[mapping['designation']] || '',
         'Training Category': row[mapping['category']] || '',
         'Training Code': row[mapping['code']] || '',
         'Training Title': row[mapping['title']] || '',

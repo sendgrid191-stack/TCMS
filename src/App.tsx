@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DEFAULT_COMPLIANCE_POLICY, 
   DEFAULT_DESIGNATION_POLICIES,
@@ -13,6 +13,7 @@ import {
 } from './sampleData';
 import { calculateCompliance } from './utils';
 import { 
+  Employee,
   TrainingRecord, 
   CategoryAData, 
   CompliancePolicy, 
@@ -67,12 +68,108 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Core application data states
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
-  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(INITIAL_TRAINING_RECORDS);
-  const [categoryAData, setCategoryAData] = useState<CategoryAData[]>(INITIAL_CATEGORY_A_RECORDS);
-  const [policies, setPolicies] = useState<{ 'Assistant Manager': CompliancePolicy; 'Manager': CompliancePolicy }>(DEFAULT_DESIGNATION_POLICIES);
-  const [validationLogs, setValidationLogs] = useState<ValidationLog[]>([]);
-  const [manualOverrides, setManualOverrides] = useState<ManualOverride[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_employees');
+      return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+    } catch {
+      return INITIAL_EMPLOYEES;
+    }
+  });
+
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_training_records');
+      return saved ? JSON.parse(saved) : INITIAL_TRAINING_RECORDS;
+    } catch {
+      return INITIAL_TRAINING_RECORDS;
+    }
+  });
+
+  const [categoryAData, setCategoryAData] = useState<CategoryAData[]>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_category_a_records');
+      return saved ? JSON.parse(saved) : INITIAL_CATEGORY_A_RECORDS;
+    } catch {
+      return INITIAL_CATEGORY_A_RECORDS;
+    }
+  });
+
+  const [policies, setPolicies] = useState<{ 'Assistant Manager': CompliancePolicy; 'Manager': CompliancePolicy }>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_policies');
+      return saved ? JSON.parse(saved) : DEFAULT_DESIGNATION_POLICIES;
+    } catch {
+      return DEFAULT_DESIGNATION_POLICIES;
+    }
+  });
+
+  const [validationLogs, setValidationLogs] = useState<ValidationLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_validation_logs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [manualOverrides, setManualOverrides] = useState<ManualOverride[]>(() => {
+    try {
+      const saved = localStorage.getItem('tcms_manual_overrides');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Save states to localStorage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_employees', JSON.stringify(employees));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [employees]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_training_records', JSON.stringify(trainingRecords));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [trainingRecords]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_category_a_records', JSON.stringify(categoryAData));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [categoryAData]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_policies', JSON.stringify(policies));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [policies]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_validation_logs', JSON.stringify(validationLogs));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [validationLogs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tcms_manual_overrides', JSON.stringify(manualOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [manualOverrides]);
 
   // Navigation tab
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -224,12 +321,30 @@ export default function App() {
     // Merge validation logs
     setValidationLogs(prev => [...logs, ...prev]);
 
-    // Check for any new unique employees
+    // Check for any new unique employees or update existing ones
     if (newEmployeesList.length > 0) {
       setEmployees(prev => {
-        const existingNos = new Set(prev.map(e => e.serviceNo));
-        const filteredNew = newEmployeesList.filter(e => !existingNos.has(e.serviceNo));
-        return [...prev, ...filteredNew];
+        const empMap = new Map<string, Employee>(prev.map(e => [e.serviceNo, { ...e }]));
+        
+        newEmployeesList.forEach((newEmp: { name: string; serviceNo: string; vertical: string; designation?: string }) => {
+          const existing = empMap.get(newEmp.serviceNo);
+          if (existing) {
+            if (newEmp.name) existing.name = newEmp.name;
+            if (newEmp.vertical) existing.vertical = newEmp.vertical;
+            if (newEmp.designation) {
+              existing.designation = newEmp.designation;
+            }
+          } else {
+            empMap.set(newEmp.serviceNo, {
+              name: newEmp.name,
+              serviceNo: newEmp.serviceNo,
+              vertical: newEmp.vertical,
+              designation: newEmp.designation || 'Assistant Manager'
+            });
+          }
+        });
+        
+        return Array.from(empMap.values());
       });
     }
   };
